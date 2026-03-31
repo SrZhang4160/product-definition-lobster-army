@@ -19,12 +19,31 @@ def load_config() -> dict:
     return {}
 
 
-def load_prompt(lobster_id: str) -> str:
-    """加载 System Prompt 文件"""
-    prompt_path = Path(f"prompts/{lobster_id}/system.txt")
+def get_language() -> str:
+    """获取当前语言设置"""
+    config = load_config()
+    return config.get("output", {}).get("language", "zh")
+
+
+def load_prompt(lobster_id: str, lang: str = None) -> str:
+    """加载 System Prompt 文件（支持双语）
+
+    lang: "zh" → system.txt, "en" → system_en.txt
+    默认读取 config.yaml 中的 output.language 设置
+    """
+    if lang is None:
+        lang = get_language()
+
+    suffix = "_en" if lang == "en" else ""
+    prompt_path = Path(f"prompts/{lobster_id}/system{suffix}.txt")
+
+    # 回退：如果英文版不存在，使用中文版
+    if not prompt_path.exists() and lang == "en":
+        prompt_path = Path(f"prompts/{lobster_id}/system.txt")
+
     if prompt_path.exists():
         return prompt_path.read_text(encoding="utf-8")
-    return f"你是{lobster_id}，一个产品分析专家。"
+    return f"You are {lobster_id}, a product analysis expert." if lang == "en" else f"你是{lobster_id}，一个产品分析专家。"
 
 
 def load_fewshot(lobster_id: str) -> str:
@@ -48,8 +67,23 @@ def get_llm(model_key: str = "sonnet", temperature: Optional[float] = None) -> L
     return LLM(model=model_name, temperature=temp)
 
 
-def build_anchor_prefix(anchor: Dict[str, Any]) -> str:
-    """构建注入每只龙虾 Prompt 开头的锚点前缀"""
+def build_anchor_prefix(anchor: Dict[str, Any], lang: str = None) -> str:
+    """构建注入每只龙虾 Prompt 开头的锚点前缀（支持双语）"""
+    if lang is None:
+        lang = get_language()
+
+    if lang == "en":
+        return (
+            f"╔══════════════════════════════════════════════════════════╗\n"
+            f"║  Product Anchor — All analysis must revolve around this ║\n"
+            f"╚══════════════════════════════════════════════════════════╝\n"
+            f"Product Name: {anchor.get('name', 'N/A')}\n"
+            f"Target User: {anchor.get('target_user', 'N/A')}\n"
+            f"Scenario: {anchor.get('scenario', 'N/A')}\n"
+            f"Core Problem: {anchor.get('core_problem', 'N/A')}\n"
+            f"One-liner: {anchor.get('product_anchor', 'N/A')}\n"
+            f"{'═'*58}\n\n"
+        )
     return (
         f"╔══════════════════════════════════════════════════════╗\n"
         f"║  产品锚点 — 所有分析必须围绕此锚点展开，不得偏离  ║\n"

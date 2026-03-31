@@ -102,4 +102,5 @@ output:
   runs_dir: "runs"
   prompts_dir: "prompts"
   report_format: "markdown"  # markdown | pdf
+  language: "zh"             # zh = 中文 | en = English
   prompt_version: "v2.0-worldclass"
