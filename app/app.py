@@ -43,9 +43,8 @@ st.set_page_config(page_title="Lobster Army", page_icon="🦞", layout="wide")
 
 # Streamlit Cloud Secrets
 # 判断是否在 Streamlit Cloud 上运行（Cloud 有 STREAMLIT_SHARING_MODE 或无本地 .env）
-_is_cloud = os.environ.get("STREAMLIT_SHARING_MODE") or not any(
-    (APP_DIR / ".env").exists(), (PROJECT_ROOT / ".env").exists()
-)
+_has_local_env = (APP_DIR / ".env").exists() or (PROJECT_ROOT / ".env").exists()
+_is_cloud = os.environ.get("STREAMLIT_SHARING_MODE") or not _has_local_env
 if _is_cloud:
     try:
         if "ANTHROPIC_API_KEY" in st.secrets:
