@@ -11,9 +11,12 @@ import json
 import yaml
 
 
+PKG_DIR = Path(__file__).parent
+
+
 def load_config() -> dict:
     """加载全局配置"""
-    config_path = Path("config.yaml")
+    config_path = PKG_DIR / "config.yaml"
     if config_path.exists():
         return yaml.safe_load(config_path.read_text(encoding="utf-8"))
     return {}
@@ -35,11 +38,11 @@ def load_prompt(lobster_id: str, lang: str = None) -> str:
         lang = get_language()
 
     suffix = "_en" if lang == "en" else ""
-    prompt_path = Path(f"prompts/{lobster_id}/system{suffix}.txt")
+    prompt_path = PKG_DIR / f"prompts/{lobster_id}/system{suffix}.txt"
 
     # 回退：如果英文版不存在，使用中文版
     if not prompt_path.exists() and lang == "en":
-        prompt_path = Path(f"prompts/{lobster_id}/system.txt")
+        prompt_path = PKG_DIR / f"prompts/{lobster_id}/system.txt"
 
     if prompt_path.exists():
         return prompt_path.read_text(encoding="utf-8")
@@ -48,7 +51,7 @@ def load_prompt(lobster_id: str, lang: str = None) -> str:
 
 def load_fewshot(lobster_id: str) -> str:
     """加载 Few-shot 示例并格式化为文本"""
-    fewshot_path = Path(f"prompts/{lobster_id}/fewshot.json")
+    fewshot_path = PKG_DIR / f"prompts/{lobster_id}/fewshot.json"
     if fewshot_path.exists():
         shots = json.loads(fewshot_path.read_text(encoding="utf-8"))
         formatted = []

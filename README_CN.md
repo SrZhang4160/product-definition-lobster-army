@@ -230,34 +230,34 @@ RunState 基于 Pydantic BaseModel，支持 JSON 序列化。每个 Phase 完成
 ## 项目结构
 
 ```
-lobster-army/
-├── .env                          # API Key
-├── main.py                       # 入口脚本
-├── flow.py                       # CrewAI Flow 核心编排
-├── agents.py                     # 5 只龙虾 Agent 定义
-├── state.py                      # RunState 状态模型
-├── compression.py                # Haiku 压缩 + Schema 校验
-├── gate_check.py                 # 检查点 B 语义一致性
-├── config.yaml                   # 全局配置 + 验收权重
-├── requirements.txt              # Python 依赖
-├── README.md                     # English Blueprint
-├── README_CN.md                  # 中文蓝图（本文件）
-├── schemas/
-│   ├── anchor.json               # 锚点 Schema
-│   ├── summary_l1.json           # L1 摘要 Schema
-│   ├── summary_l2.json           # L2 摘要 Schema
-│   └── combined_summary.json     # 合并摘要 Schema
-├── prompts/
-│   ├── anchor/
-│   │   ├── system.txt            # 锚点提取 Prompt（中文）
-│   │   └── system_en.txt         # Anchor Extraction Prompt (English)
-│   ├── lobster_1/
-│   │   ├── system.txt            # L1 System Prompt（中文）
-│   │   └── system_en.txt         # L1 System Prompt (English)
-│   ├── lobster_2/ ... lobster_5/ # 同上双语结构
-├── runs/                         # 运行输出目录
-├── evals/results/                # 评估结果
-└── tools/                        # 自定义工具
+lobster-army/                         # CrewAI AMP Flow 项目
+├── pyproject.toml                    # AMP 配置 (type = "flow")
+├── .env                              # API Key (git 忽略)
+├── .gitignore
+├── README.md                         # English Blueprint
+├── README_CN.md                      # 中文蓝图（本文件）
+└── src/
+    └── lobster_army/                 # 主包
+        ├── __init__.py
+        ├── main.py                   # AMP 入口: kickoff() + plot()
+        ├── __main__.py               # python -m lobster_army
+        ├── flow.py                   # CrewAI Flow 核心编排
+        ├── agents.py                 # 5 只龙虾 Agent 定义
+        ├── state.py                  # RunState 状态模型
+        ├── compression.py            # Haiku 压缩 + Schema 校验
+        ├── gate_check.py             # 检查点 B 语义一致性
+        ├── config.yaml               # 全局配置 + 验收权重
+        ├── schemas/
+        │   ├── anchor.json           # 锚点 Schema
+        │   ├── summary_l1.json       # L1 摘要 Schema
+        │   ├── summary_l2.json       # L2 摘要 Schema
+        │   └── combined_summary.json # 合并摘要 Schema
+        ├── prompts/
+        │   ├── anchor/               # 锚点提取 Prompt（双语）
+        │   ├── lobster_1/ ... lobster_5/  # 双语 System Prompt
+        ├── crews/                    # 嵌入式 Crews（AMP 必需）
+        ├── tools/                    # 自定义工具
+        └── runs/                     # 运行输出目录（git 忽略）
 ```
 
 ---
@@ -266,8 +266,11 @@ lobster-army/
 
 ### 1. 安装依赖
 ```bash
-cd lobster-army
-pip install -r requirements.txt
+# 推荐使用 uv（AMP 兼容）
+uv sync
+
+# 或使用 pip
+pip install -e .
 ```
 
 ### 2. 配置 API Key
@@ -278,14 +281,17 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ### 3. 运行分析
 ```bash
-# 新运行
-python main.py "一个帮助远程团队异步协作的工具"
+# 通过 CrewAI CLI（AMP 兼容）
+crewai flow kickoff
+
+# 通过 Python 模块
+python -m lobster_army "一个帮助远程团队异步协作的工具"
 
 # 查看历史
-python main.py --list
+python -m lobster_army --list
 
 # 断点续跑
-python main.py --resume 20260331_143022
+python -m lobster_army --resume 20260331_143022
 ```
 
 ### 4. 查看输出

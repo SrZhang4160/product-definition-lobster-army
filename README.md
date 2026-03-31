@@ -233,34 +233,36 @@ A structured anchor (name / target_user / scenario / core_problem / product_anch
 ## Project Structure
 
 ```
-lobster-army/
-├── .env                          # API Key
-├── main.py                       # Entry point
-├── flow.py                       # CrewAI Flow core orchestration
-├── agents.py                     # 5 Lobster Agent definitions
-├── state.py                      # RunState state model
-├── compression.py                # Haiku compression + Schema validation
-├── gate_check.py                 # Gate Check B semantic consistency
-├── config.yaml                   # Global config + acceptance weights
-├── requirements.txt              # Python dependencies
-├── README.md                     # English Blueprint (this file)
-├── README_CN.md                  # Chinese Blueprint
-├── schemas/
-│   ├── anchor.json               # Anchor Schema
-│   ├── summary_l1.json           # L1 Summary Schema
-│   ├── summary_l2.json           # L2 Summary Schema
-│   └── combined_summary.json     # Combined Summary Schema
-├── prompts/
-│   ├── anchor/
-│   │   ├── system.txt            # Anchor Prompt (Chinese)
-│   │   └── system_en.txt         # Anchor Prompt (English)
-│   ├── lobster_1/
-│   │   ├── system.txt            # L1 System Prompt (Chinese)
-│   │   └── system_en.txt         # L1 System Prompt (English)
-│   ├── lobster_2/ ... lobster_5/ # Same bilingual structure
-├── runs/                         # Run output directory
-├── evals/results/                # Evaluation results
-└── tools/                        # Custom tools
+lobster-army/                         # CrewAI AMP Flow Project
+├── pyproject.toml                    # AMP config (type = "flow")
+├── .env                              # API Key (git-ignored)
+├── .gitignore
+├── README.md                         # English Blueprint (this file)
+├── README_CN.md                      # Chinese Blueprint
+└── src/
+    └── lobster_army/                 # Main package
+        ├── __init__.py
+        ├── main.py                   # AMP entry: kickoff() + plot()
+        ├── __main__.py               # python -m lobster_army
+        ├── flow.py                   # CrewAI Flow core orchestration
+        ├── agents.py                 # 5 Lobster Agent definitions
+        ├── state.py                  # RunState state model
+        ├── compression.py            # Haiku compression + Schema validation
+        ├── gate_check.py             # Gate Check B semantic consistency
+        ├── config.yaml               # Global config + acceptance weights
+        ├── schemas/
+        │   ├── anchor.json           # Anchor Schema
+        │   ├── summary_l1.json       # L1 Summary Schema
+        │   ├── summary_l2.json       # L2 Summary Schema
+        │   └── combined_summary.json # Combined Summary Schema
+        ├── prompts/
+        │   ├── anchor/
+        │   │   ├── system.txt        # Anchor Prompt (Chinese)
+        │   │   └── system_en.txt     # Anchor Prompt (English)
+        │   ├── lobster_1/ ... lobster_5/  # Bilingual system prompts
+        ├── crews/                    # Embedded crews (AMP required)
+        ├── tools/                    # Custom tools
+        └── runs/                     # Run output directory (git-ignored)
 ```
 
 ---
@@ -269,8 +271,11 @@ lobster-army/
 
 ### 1. Install Dependencies
 ```bash
-cd lobster-army
-pip install -r requirements.txt
+# Using uv (recommended for AMP)
+uv sync
+
+# Or using pip
+pip install -e .
 ```
 
 ### 2. Configure API Key
@@ -281,14 +286,17 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ### 3. Run Analysis
 ```bash
-# New run (Chinese)
-python main.py "一个帮助远程团队异步协作的工具"
+# Via CrewAI CLI (AMP compatible)
+crewai flow kickoff
 
-# New run (English) — set language in config.yaml: output.language: en
-python main.py "A tool that helps remote teams collaborate asynchronously"
+# Via Python module
+python -m lobster_army "一个帮助远程团队异步协作的工具"
+
+# English mode — set language in config.yaml: output.language: en
+python -m lobster_army "A tool that helps remote teams collaborate asynchronously"
 
 # List history
-python main.py --list
+python -m lobster_army --list
 
 # Resume from checkpoint
 python main.py --resume 20260331_143022

@@ -13,15 +13,16 @@ from crewai import Crew, Task
 from crewai.flow.flow import Flow, listen, start, router, and_
 from anthropic import Anthropic
 
-from state import RunState, LobsterOutput
-from agents import (
+from .state import RunState, LobsterOutput
+from .agents import (
     create_lobster_1, create_lobster_2, create_lobster_3,
     create_lobster_4, create_lobster_5,
     load_fewshot, build_anchor_prefix,
 )
-from compression import compress_with_fallback, merge_and_validate
-from gate_check import check_semantic_consistency
+from .compression import compress_with_fallback, merge_and_validate
+from .gate_check import check_semantic_consistency
 
+PKG_DIR = Path(__file__).parent
 haiku_client = Anthropic()
 
 
@@ -291,7 +292,7 @@ class LobsterArmyFlow(Flow[RunState]):
         self.state.persist()
 
         # 保存 combined_summary.json
-        run_path = Path("runs") / self.state.run_id
+        run_path = PKG_DIR / "runs" / self.state.run_id
         run_path.mkdir(parents=True, exist_ok=True)
         (run_path / "combined_summary.json").write_text(
             json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -363,7 +364,7 @@ class LobsterArmyFlow(Flow[RunState]):
         self.state.phase = "partial"
         self.state.persist()
         report_content = self._build_partial_report()
-        run_path = Path("runs") / self.state.run_id
+        run_path = PKG_DIR / "runs" / self.state.run_id
         (run_path / "partial_report.md").write_text(report_content, encoding="utf-8")
         return report_content
 
@@ -419,7 +420,7 @@ class LobsterArmyFlow(Flow[RunState]):
         report = self._build_full_report()
         meta = self._build_meta()
 
-        run_path = Path("runs") / self.state.run_id
+        run_path = PKG_DIR / "runs" / self.state.run_id
         run_path.mkdir(parents=True, exist_ok=True)
         (run_path / "final_report.md").write_text(report, encoding="utf-8")
         (run_path / "meta.json").write_text(

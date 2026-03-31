@@ -1,7 +1,0 @@
-# 龙虾军团 v4.1 — CrewAI Flow 集成
-# Python >= 3.11
-
-crewai[tools]>=1.10         # Flow API + Anthropic Provider + MCP
-anthropic>=0.49             # Haiku 直接调用（压缩/锚点/检查点）
-jsonschema>=4.20            # JSON Schema 校验
-pydantic>=2.5               # RunState 模型
