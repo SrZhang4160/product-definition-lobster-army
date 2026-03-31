@@ -7,7 +7,13 @@
 import json
 import re
 from typing import Dict, Any, Tuple
+from pathlib import Path
 from anthropic import Anthropic
+from dotenv import load_dotenv
+
+PKG_DIR = Path(__file__).parent
+load_dotenv(PKG_DIR.parent.parent / ".env")
+load_dotenv()
 
 client = Anthropic()
 

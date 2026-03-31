@@ -10,8 +10,12 @@ from typing import Dict, Any, Optional
 from anthropic import Anthropic
 from jsonschema import validate, ValidationError
 from pathlib import Path
+from dotenv import load_dotenv
 
 PKG_DIR = Path(__file__).parent
+load_dotenv(PKG_DIR.parent.parent / ".env")
+load_dotenv()
+
 client = Anthropic()
 
 COMPRESS_PROMPT = """你是一个信息压缩专家。将以下产品分析报告压缩为严格的 JSON 格式。

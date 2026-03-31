@@ -23,6 +23,11 @@ from .compression import compress_with_fallback, merge_and_validate
 from .gate_check import check_semantic_consistency
 
 PKG_DIR = Path(__file__).parent
+
+from dotenv import load_dotenv
+load_dotenv(PKG_DIR.parent.parent / ".env")  # project root .env
+load_dotenv()  # also check cwd
+
 haiku_client = Anthropic()
 
 
