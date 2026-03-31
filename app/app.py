@@ -10,6 +10,9 @@ import json
 import os
 import re
 import sys
+import base64
+import urllib.request
+import urllib.error
 from pathlib import Path
 from datetime import datetime
 from anthropic import Anthropic
@@ -47,6 +50,10 @@ if any(p.exists() for p in _secrets_paths):
     try:
         if "ANTHROPIC_API_KEY" in st.secrets:
             os.environ.setdefault("ANTHROPIC_API_KEY", st.secrets["ANTHROPIC_API_KEY"])
+        if "GITHUB_TOKEN" in st.secrets:
+            os.environ.setdefault("GITHUB_TOKEN", st.secrets["GITHUB_TOKEN"])
+        if "GITHUB_REPO" in st.secrets:
+            os.environ.setdefault("GITHUB_REPO", st.secrets["GITHUB_REPO"])
     except Exception:
         pass
 
@@ -233,6 +240,31 @@ for k, v in DEFAULTS.items():
 # 历史记录
 # ══════════════════════════════════════════════════════
 
+def _push_to_github(filename: str, content: str):
+    """通过 GitHub API 将报告文件 push 到仓库的 reports/ 目录"""
+    token = os.environ.get("GITHUB_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPO", "")  # 格式: "owner/repo"
+    if not token or not repo:
+        return  # 没有配置则跳过
+
+    api_url = f"https://api.github.com/repos/{repo}/contents/reports/{filename}"
+    payload = json.dumps({
+        "message": f"report: {filename}",
+        "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+        "branch": os.environ.get("GITHUB_BRANCH", "main"),
+    }).encode("utf-8")
+
+    req = urllib.request.Request(api_url, data=payload, method="PUT", headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+    })
+    try:
+        urllib.request.urlopen(req, timeout=10)
+    except Exception:
+        pass  # push 失败不影响主流程
+
+
 def save_to_history():
     anchor_name = st.session_state.anchor.get("name", "unnamed")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -248,7 +280,14 @@ def save_to_history():
         "saved_at": datetime.now().isoformat(),
         "version": "4.0",
     }
-    (HISTORY_DIR / filename).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+
+    # 本地保存
+    (HISTORY_DIR / filename).write_text(content, encoding="utf-8")
+
+    # 自动 push 到 GitHub（云端部署时）
+    _push_to_github(filename, content)
+
     return filename
 
 
