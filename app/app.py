@@ -41,20 +41,18 @@ for _env_path in [APP_DIR / ".env", PROJECT_ROOT / ".env"]:
 # ══════════════════════════════════════════════════════
 st.set_page_config(page_title="Lobster Army", page_icon="🦞", layout="wide")
 
-# Streamlit Cloud Secrets
-# 判断是否在 Streamlit Cloud 上运行（Cloud 有 STREAMLIT_SHARING_MODE 或无本地 .env）
-_has_local_env = (APP_DIR / ".env").exists() or (PROJECT_ROOT / ".env").exists()
-_is_cloud = os.environ.get("STREAMLIT_SHARING_MODE") or not _has_local_env
-if _is_cloud:
-    try:
-        if "ANTHROPIC_API_KEY" in st.secrets:
-            os.environ["ANTHROPIC_API_KEY"] = st.secrets["ANTHROPIC_API_KEY"]
-        if "GITHUB_TOKEN" in st.secrets:
-            os.environ["GITHUB_TOKEN"] = st.secrets["GITHUB_TOKEN"]
-        if "GITHUB_REPO" in st.secrets:
-            os.environ["GITHUB_REPO"] = st.secrets["GITHUB_REPO"]
-    except Exception:
-        pass
+# Streamlit Secrets → 环境变量（兼容所有环境）
+try:
+    for _key in ["ANTHROPIC_API_KEY", "GITHUB_TOKEN", "GITHUB_REPO"]:
+        if _key in st.secrets:
+            os.environ[_key] = str(st.secrets[_key]).strip()
+except Exception:
+    pass  # 本地无 secrets.toml 时静默跳过
+
+# 检查 API Key 是否可用
+if not os.environ.get("ANTHROPIC_API_KEY"):
+    st.error("ANTHROPIC_API_KEY not found. Please configure it in .env (local) or Streamlit Secrets (cloud).")
+    st.stop()
 
 # ══════════════════════════════════════════════════════
 # 国际化
