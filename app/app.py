@@ -41,19 +41,19 @@ for _env_path in [APP_DIR / ".env", PROJECT_ROOT / ".env"]:
 # ══════════════════════════════════════════════════════
 st.set_page_config(page_title="Lobster Army", page_icon="🦞", layout="wide")
 
-# Streamlit Cloud Secrets（仅在 secrets.toml 存在时才访问，避免 warning）
-_secrets_paths = [
-    Path.home() / ".streamlit" / "secrets.toml",
-    APP_DIR / ".streamlit" / "secrets.toml",
-]
-if any(p.exists() for p in _secrets_paths):
+# Streamlit Cloud Secrets
+# 判断是否在 Streamlit Cloud 上运行（Cloud 有 STREAMLIT_SHARING_MODE 或无本地 .env）
+_is_cloud = os.environ.get("STREAMLIT_SHARING_MODE") or not any(
+    (APP_DIR / ".env").exists(), (PROJECT_ROOT / ".env").exists()
+)
+if _is_cloud:
     try:
         if "ANTHROPIC_API_KEY" in st.secrets:
-            os.environ.setdefault("ANTHROPIC_API_KEY", st.secrets["ANTHROPIC_API_KEY"])
+            os.environ["ANTHROPIC_API_KEY"] = st.secrets["ANTHROPIC_API_KEY"]
         if "GITHUB_TOKEN" in st.secrets:
-            os.environ.setdefault("GITHUB_TOKEN", st.secrets["GITHUB_TOKEN"])
+            os.environ["GITHUB_TOKEN"] = st.secrets["GITHUB_TOKEN"]
         if "GITHUB_REPO" in st.secrets:
-            os.environ.setdefault("GITHUB_REPO", st.secrets["GITHUB_REPO"])
+            os.environ["GITHUB_REPO"] = st.secrets["GITHUB_REPO"]
     except Exception:
         pass
 
