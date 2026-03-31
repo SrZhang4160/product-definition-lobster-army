@@ -1,0 +1,105 @@
+# ══════════════════════════════════════════════════════
+# 龙虾军团全局配置 v2.0 — 世界一流团队标准
+# ══════════════════════════════════════════════════════
+
+models:
+  sonnet:
+    name: "anthropic/claude-sonnet-4-6"
+    temperature: 0.3
+  haiku:
+    name: "anthropic/claude-haiku-4-5"
+    temperature: 0.2
+
+lobsters:
+  lobster_1:
+    title: "首席市场情报官 (CMIO)"
+    role: "麦肯锡级行业分析 × Gartner级数据定量 × IDEO级用户洞察"
+    model: sonnet
+    max_tokens: 4500
+    temperature: 0.3
+    search_calls: 5
+    # 验收标准权重
+    gate_weights:
+      market_sizing: 0.35    # TAM/SAM/SOM 双方法交叉验证
+      user_personas: 0.30    # 10维度用户画像 + 首选用户群
+      growth_engine: 0.20    # CAGR + 窗口期判断
+      data_confidence: 0.15  # 置信度标注覆盖率
+
+  lobster_2:
+    title: "首席竞争情报官 (CCIO)"
+    role: "CB Insights级竞品追踪 × 贝恩级战略咨询 × G2级用户声音"
+    model: sonnet
+    max_tokens: 4500
+    temperature: 0.3
+    search_calls: 6
+    gate_weights:
+      alternatives_map: 0.15   # 替代方案全景图
+      competitor_matrix: 0.35  # 12维度竞品矩阵 (≥5竞品)
+      strategic_tools: 0.25   # 雷达图 + 群组地图 + 价值链弱点
+      entry_strategy: 0.25    # 3个差异化方向 + CAC benchmark
+
+  lobster_3:
+    title: "首席产品官 (CPO) · 枢纽龙虾"
+    role: "Superhuman级产品定义 × IDEO级体验设计 × YC级产品直觉"
+    model: sonnet
+    max_tokens: 4000
+    temperature: 0.3
+    search_calls: 0
+    gate_weights:
+      positioning: 0.25      # 定位金字塔 + 差异化声明
+      user_journey: 0.25     # 五阶段旅程图 + Aha Moment
+      feature_priority: 0.30 # RICE+MoSCoW + 数据依据
+      mvp_definition: 0.20   # MVP规格 + NSM + 演进路径
+
+  lobster_4:
+    title: "首席技术官 + 首席架构师 (CTO/CA)"
+    role: "Stripe级架构 × AWS SA Professional级基础设施 × YC TDD级评审"
+    model: sonnet
+    max_tokens: 5500
+    temperature: 0.3
+    search_calls: 2
+    gate_weights:
+      adr: 0.15              # 架构决策记录 (≥3个ADR)
+      three_plans: 0.55      # 三套完整技术蓝图
+      comparison: 0.20       # 对比矩阵 + 演进路径
+      risk_warning: 0.10     # 技术风险 Top 5
+
+  lobster_5:
+    title: "首席风控官 + 红队队长 (CRO/RTL)"
+    role: "Sequoia级投资审查 × 桥水级风险分析 × 军事红队级对抗思维"
+    model: sonnet
+    max_tokens: 5000
+    temperature: 0.4   # 略高温度鼓励发散性批判思维
+    search_calls: 2
+    gate_weights:
+      assumptions: 0.25       # 致命假设检验 (≥5个假设)
+      risk_matrix: 0.25       # 六维风险矩阵 + Top 3 红色风险
+      stress_test: 0.20       # 三级资金压力测试
+      investor_qa: 0.15       # 投资人尖锐问答 (≥8题)
+      verdict: 0.15           # 综合评分 + Kill/Pivot/Go 决策
+
+compression:
+  model: haiku
+  max_tokens: 500
+  retry_count: 1
+
+gate_check:
+  model: haiku
+  threshold: 5
+  max_retries: 1
+  retry_temperature: 0.5
+
+anchor:
+  model: haiku
+  max_tokens: 200
+
+retry:
+  max_retries: 2
+  base_delay_ms: 2000
+  retryable_status_codes: [429, 500, 502, 503]
+
+output:
+  runs_dir: "runs"
+  prompts_dir: "prompts"
+  report_format: "markdown"  # markdown | pdf
+  prompt_version: "v2.0-worldclass"

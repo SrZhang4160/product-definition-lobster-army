@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "龙虾一摘要",
+  "description": "市场规模 + 用户洞察的压缩摘要",
+  "type": "object",
+  "required": ["product_anchor", "market", "target_users"],
+  "properties": {
+    "product_anchor": {
+      "type": "string",
+      "description": "一句话产品定位（由 Orchestrator 注入，不经过 Haiku）"
+    },
+    "market": {
+      "type": "object",
+      "required": ["tam", "sam", "som", "source_year"],
+      "properties": {
+        "tam": {
+          "type": "string",
+          "description": "Total Addressable Market，含单位（如 $12.5B）"
+        },
+        "sam": {
+          "type": "string",
+          "description": "Serviceable Addressable Market"
+        },
+        "som": {
+          "type": "string",
+          "description": "Serviceable Obtainable Market"
+        },
+        "source_year": {
+          "type": "string",
+          "description": "数据来源年份标注（如 Statista 2025）"
+        }
+      }
+    },
+    "target_users": {
+      "type": "array",
+      "description": "目标用户画像列表",
+      "items": {
+        "type": "object",
+        "required": ["persona", "willingness_to_pay"],
+        "properties": {
+          "persona": {
+            "type": "string",
+            "description": "用户画像名称"
+          },
+          "willingness_to_pay": {
+            "type": "string",
+            "description": "付费意愿描述"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "growth_rate": {
+      "type": "string",
+      "description": "市场增长率（CAGR）"
+    },
+    "key_insight": {
+      "type": "string",
+      "description": "最重要的市场洞察（一句话）"
+    }
+  }
+}

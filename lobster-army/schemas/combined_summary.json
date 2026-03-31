@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "合并摘要",
+  "description": "龙虾一+二的合并摘要，供龙虾三读取",
+  "type": "object",
+  "required": ["product_anchor", "market", "target_users", "competitors", "key_opportunity"],
+  "properties": {
+    "product_anchor": {
+      "type": "string",
+      "description": "一句话产品定位（由 Orchestrator 注入）"
+    },
+    "market": {
+      "type": "object",
+      "required": ["tam", "sam", "som", "source_year"],
+      "properties": {
+        "tam": { "type": "string" },
+        "sam": { "type": "string" },
+        "som": { "type": "string" },
+        "source_year": { "type": "string" }
+      }
+    },
+    "target_users": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["persona", "willingness_to_pay"],
+        "properties": {
+          "persona": { "type": "string" },
+          "willingness_to_pay": { "type": "string" }
+        }
+      },
+      "minItems": 1
+    },
+    "competitors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "positioning", "weakness"],
+        "properties": {
+          "name": { "type": "string" },
+          "positioning": { "type": "string" },
+          "weakness": { "type": "string" },
+          "funding": { "type": "string" }
+        }
+      }
+    },
+    "key_opportunity": {
+      "type": "string"
+    }
+  }
+}

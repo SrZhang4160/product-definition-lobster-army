@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "产品锚点",
+  "description": "从原始 Idea 中提取的结构化产品锚点，贯穿整个分析流程",
+  "type": "object",
+  "required": ["name", "target_user", "scenario", "core_problem", "product_anchor"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "产品名称或简称"
+    },
+    "target_user": {
+      "type": "string",
+      "description": "目标用户群体描述"
+    },
+    "scenario": {
+      "type": "string",
+      "description": "核心使用场景"
+    },
+    "core_problem": {
+      "type": "string",
+      "description": "要解决的核心痛点"
+    },
+    "product_anchor": {
+      "type": "string",
+      "description": "一句话产品定位"
+    }
+  },
+  "additionalProperties": false
+}

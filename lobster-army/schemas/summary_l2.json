@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "龙虾二摘要",
+  "description": "竞品分析 + 市场空白的压缩摘要",
+  "type": "object",
+  "required": ["product_anchor", "competitors", "key_opportunity"],
+  "properties": {
+    "product_anchor": {
+      "type": "string",
+      "description": "一句话产品定位（由 Orchestrator 注入）"
+    },
+    "competitors": {
+      "type": "array",
+      "description": "主要竞品列表",
+      "items": {
+        "type": "object",
+        "required": ["name", "positioning", "weakness"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "竞品名称"
+          },
+          "positioning": {
+            "type": "string",
+            "description": "竞品定位（一句话）"
+          },
+          "weakness": {
+            "type": "string",
+            "description": "竞品核心弱点"
+          },
+          "funding": {
+            "type": "string",
+            "description": "融资情况（如有）"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "key_opportunity": {
+      "type": "string",
+      "description": "最大的市场空白机会（一句话）"
+    },
+    "differentiation_angle": {
+      "type": "string",
+      "description": "推荐的差异化切入角度"
+    }
+  }
+}
