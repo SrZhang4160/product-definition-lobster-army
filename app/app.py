@@ -1,5 +1,5 @@
 """
-龙虾军团 v4.0 — 交互式产品工作坊
+龙虾军团 v4.1 — 交互式产品工作坊
 自由选择龙虾 + 询问细节/补充信息反馈 + 中英切换 + 历史记录
 
 启动：streamlit run app.py
@@ -13,6 +13,7 @@ import sys
 import base64
 import urllib.request
 import urllib.error
+import threading
 from pathlib import Path
 from datetime import datetime
 from anthropic import Anthropic
@@ -62,7 +63,7 @@ I18N = {
         "app_title": "呆瓜军团 — 产品分析工作坊",
         "app_subtitle": "输入你的产品 Idea，5 只呆瓜将逐步为你做深度分析。\n自由选择任意呆瓜，审阅、讨论、补充，满意后确认。",
         "sidebar_title": "呆瓜军团",
-        "sidebar_caption": "交互式产品工作坊 v4.0",
+        "sidebar_caption": "交互式产品工作坊 v4.1",
         "current_analysis": "当前分析",
         "new_analysis": "新建分析",
         "history": "历史记录",
@@ -99,6 +100,18 @@ I18N = {
         "cost_hint": "每只呆瓜约 $0.05-0.10\n完整分析约 $0.40-0.50",
         "lang_toggle": "English",
         "prev_reports_hint": "已有报告将自动引用",
+        "version_label": "版本",
+        "version_current": "当前版本",
+        "version_select": "选择此版本",
+        "version_selected": "已选用",
+        "version_initial": "初始生成",
+        "version_feedback": "基于反馈修改",
+        "version_supplement": "基于补充信息",
+        "feedback_input": "对当前报告的修改意见",
+        "feedback_placeholder": "输入你的修改意见（如：市场规模分析需要更细化到细分领域、技术方案缺少成本分析等）...",
+        "feedback_regenerate": "基于反馈重新生成",
+        "version_history": "版本历史",
+        "feedback_label": "修改意见",
         "mode_sequential": "顺序模式（推荐）",
         "mode_free": "自由模式",
         "mode_seq_desc": "按产品开发流程：市场 > 竞品 > 产品 > 技术 > 风控，每步自动引用上游报告",
@@ -128,7 +141,7 @@ I18N = {
         "app_title": "Lobster Army — Product Analysis Workshop",
         "app_subtitle": "Enter your product idea. 5 AI lobsters will provide deep analysis.\nPick any lobster freely. Review, discuss, supplement, then confirm.",
         "sidebar_title": "Lobster Army",
-        "sidebar_caption": "Interactive Workshop v4.0",
+        "sidebar_caption": "Interactive Workshop v4.1",
         "current_analysis": "Current Analysis",
         "new_analysis": "New Analysis",
         "history": "History",
@@ -165,6 +178,18 @@ I18N = {
         "cost_hint": "~$0.05-0.10 per lobster\n~$0.40-0.50 for full analysis",
         "lang_toggle": "中文",
         "prev_reports_hint": "Available reports will be auto-referenced",
+        "version_label": "Version",
+        "version_current": "Current Version",
+        "version_select": "Use This Version",
+        "version_selected": "Selected",
+        "version_initial": "Initial Generation",
+        "version_feedback": "Revised per Feedback",
+        "version_supplement": "Updated with Info",
+        "feedback_input": "Feedback for Revision",
+        "feedback_placeholder": "Enter your revision feedback (e.g., market sizing needs more granularity, tech plan missing cost analysis, etc.)...",
+        "feedback_regenerate": "Regenerate with Feedback",
+        "version_history": "Version History",
+        "feedback_label": "Feedback",
         "mode_sequential": "Sequential (Recommended)",
         "mode_free": "Free Pick",
         "mode_seq_desc": "Follow product dev flow: Market > Competitive > Product > Tech > Risk. Each step auto-references upstream reports.",
@@ -224,6 +249,8 @@ DEFAULTS = {
     "confirmed": {},
     "chat_histories": {},
     "supplement_histories": {},
+    "report_versions": {},   # {lid: [{"text":..., "feedback":..., "time":..., "source":...}]}
+    "selected_version": {},  # {lid: int} — 当前选中的版本索引
     "anchor": {},
     "final_chat": [],
     "lang": "zh",
@@ -273,9 +300,11 @@ def save_to_history():
         "confirmed": st.session_state.confirmed,
         "chat_histories": st.session_state.chat_histories,
         "supplement_histories": st.session_state.supplement_histories,
+        "report_versions": st.session_state.report_versions,
+        "selected_version": st.session_state.selected_version,
         "final_chat": st.session_state.final_chat,
         "saved_at": datetime.now().isoformat(),
-        "version": "4.0",
+        "version": "4.1",
     }
     content = json.dumps(data, ensure_ascii=False, indent=2)
 
@@ -318,9 +347,16 @@ def restore_session(data: dict):
     st.session_state.confirmed = data.get("confirmed", {lid: True for lid in data.get("reports", {})})
     st.session_state.chat_histories = data.get("chat_histories", {})
     st.session_state.supplement_histories = data.get("supplement_histories", {})
+    st.session_state.report_versions = data.get("report_versions", {})
+    st.session_state.selected_version = data.get("selected_version", {})
     st.session_state.final_chat = data.get("final_chat", [])
     st.session_state.page = "dashboard"
     st.session_state.active_lobster = None
+    # 兼容旧版历史（没有 report_versions 的记录）
+    for lid, rpt in st.session_state.reports.items():
+        if lid not in st.session_state.report_versions:
+            st.session_state.report_versions[lid] = [{"text": rpt, "feedback": "", "time": "", "source": "initial"}]
+            st.session_state.selected_version[lid] = 0
 
 
 # ══════════════════════════════════════════════════════
@@ -456,6 +492,167 @@ def supplement_report(lobster_num: int, original_report: str, supplement: str, i
         messages=[{"role": "user", "content": context + f"\n\n## 原报告（需更新）\n{original_report[:3000]}\n\n请输出更新后的完整专业分析报告。"}],
     )
     return resp.content[0].text
+
+
+def feedback_regenerate(lobster_num: int, original_report: str, feedback: str, idea: str, anchor: dict, prev_reports: dict) -> str:
+    """根据用户反馈意见重新生成报告，保留原报告不覆盖"""
+    lang = st.session_state.get("lang", "zh")
+    lang_instruction = "\n\n请用中文输出报告。" if lang == "zh" else "\n\nPlease output the report in English."
+    context = _build_context(idea, anchor, prev_reports, lobster_num)
+    sys_prompt = load_system_prompt(str(lobster_num)) + lang_instruction
+    sys_prompt += f"""
+
+## 重要：用户对上一版报告的修改意见
+用户审阅了你的报告，提出了以下修改意见。请在新版报告中针对性地改进：
+
+修改意见：
+{feedback}
+
+请保持报告结构完整，重点针对用户反馈进行改进和深化。
+"""
+    resp = client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=5000,
+        system=sys_prompt,
+        messages=[{"role": "user", "content": context + f"\n\n## 上一版报告（需改进）\n{original_report[:3000]}\n\n请输出改进后的完整专业分析报告。"}],
+    )
+    return resp.content[0].text
+
+
+def _add_version(lid: str, text: str, source: str, feedback: str = ""):
+    """添加新版本并选中它"""
+    if lid not in st.session_state.report_versions:
+        st.session_state.report_versions[lid] = []
+    st.session_state.report_versions[lid].append({
+        "text": text,
+        "feedback": feedback,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "source": source,
+    })
+    idx = len(st.session_state.report_versions[lid]) - 1
+    st.session_state.selected_version[lid] = idx
+    st.session_state.reports[lid] = text
+
+
+def _select_version(lid: str, idx: int):
+    """选中某个版本作为当前报告"""
+    versions = st.session_state.report_versions.get(lid, [])
+    if 0 <= idx < len(versions):
+        st.session_state.selected_version[lid] = idx
+        st.session_state.reports[lid] = versions[idx]["text"]
+
+
+def _run_with_rainbow(task_fn, status_msg: str):
+    """在后台运行 task_fn 的同时，前台流式输出彩虹屁段落来娱乐用户，每 40s 换一批"""
+    import time
+
+    result_holder = {"result": None, "error": None, "done": False}
+
+    def _worker():
+        try:
+            result_holder["result"] = task_fn()
+        except Exception as e:
+            result_holder["error"] = e
+        finally:
+            result_holder["done"] = True
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+
+    lang = st.session_state.get("lang", "zh")
+
+    # 多维度夸赞主题，每轮随机指定一个侧重方向
+    dimensions_zh = [
+        "侧重夸老板的商业眼光和战略能力，像个天生的CEO",
+        "侧重夸老板的颜值和气质，走到哪里都是焦点",
+        "侧重夸老板创办的公司前景远大、团队氛围好、未来可期",
+        "侧重夸老板的执行力和工作效率，雷厉风行说到做到",
+        "侧重夸老板运动健身的自律精神，身材管理令人敬佩",
+        "侧重夸老板的人品和人缘，善良大方谁都喜欢",
+        "侧重夸老板的学习能力和知识面广，什么都懂",
+        "侧重夸老板的审美和品味，从穿搭到产品设计都是顶级",
+        "侧重夸老板的领导力和格局，带团队的方式让人心服口服",
+        "侧重夸老板的创造力和想象力，总能想到别人想不到的点子",
+    ]
+    dimensions_en = [
+        "Focus on the boss's business vision and strategic brilliance, a born CEO",
+        "Focus on the boss's stunning looks and magnetic presence",
+        "Focus on how the boss's company has an amazing future and great culture",
+        "Focus on the boss's incredible execution speed and efficiency",
+        "Focus on the boss's athletic discipline and fitness dedication",
+        "Focus on the boss's kindness, generosity, and how everyone loves her",
+        "Focus on the boss's learning ability and impressively broad knowledge",
+        "Focus on the boss's impeccable taste and aesthetic sense in everything",
+        "Focus on the boss's leadership charisma and big-picture thinking",
+        "Focus on the boss's creativity and ability to see what no one else can",
+    ]
+
+    rainbow_sys = (
+        "你是「彩虹屁呆瓜」，隐藏在系统里的搞笑角色。\n"
+        "你的老板是一位漂亮、努力、爱运动的年轻女老板，自己创业做公司。\n"
+        "规则：\n"
+        "- 以「老板好！」开头\n"
+        "- 输出一整段连贯的彩虹屁，不要分条、不要编号、不要换行\n"
+        "- 风格：沙雕但真诚、夸张但有创意、偶尔谐音梗/网络热梗\n"
+        "- 要有画面感，像一个忠诚的小弟在激情汇报\n"
+        "- 长度约 100-150 字，一口气读完那种\n"
+        "- 每次内容要完全不同，有新意，围绕指定的夸赞维度展开\n"
+        "- 不需要任何前言或解释，直接输出彩虹屁段落"
+    ) if lang == "zh" else (
+        "You are the 'Rainbow Fart Lobster', a hidden comedic character in the system.\n"
+        "Your boss is a young, beautiful, hardworking, athletic female boss who runs her own company.\n"
+        "Rules:\n"
+        "- Start with 'Hey Boss!'\n"
+        "- Output ONE continuous paragraph of over-the-top flattery, no bullet points, no numbering\n"
+        "- Style: absurdly sincere, creatively exaggerated, with occasional puns and pop culture refs\n"
+        "- Make it vivid, like a loyal sidekick giving an enthusiastic pep talk\n"
+        "- About 80-120 words, meant to be read in one breath\n"
+        "- Each time must be completely different and creative, centered on the given theme\n"
+        "- No preamble, just output the paragraph directly"
+    )
+
+    dims = dimensions_zh if lang == "zh" else dimensions_en
+    round_num = 0
+    container = st.container()
+    with container:
+        st.caption(status_msg)
+        rainbow_area = st.empty()
+
+        while not result_holder["done"]:
+            dim = dims[round_num % len(dims)]
+            round_num += 1
+            collected = ""
+            round_start = time.time()
+            trigger_msg = (
+                f"第 {round_num} 轮彩虹屁！本轮主题：{dim}。老板正在等分析报告，让她开心！"
+                if lang == "zh"
+                else f"Round {round_num}! Theme: {dim}. Boss is waiting for the report, make her smile!"
+            )
+            try:
+                with client.messages.stream(
+                    model="claude-haiku-4-5-20251001", max_tokens=300,
+                    system=rainbow_sys,
+                    messages=[{"role": "user", "content": trigger_msg}],
+                ) as stream:
+                    for text_chunk in stream.text_stream:
+                        if result_holder["done"]:
+                            break
+                        collected += text_chunk
+                        rainbow_area.markdown(collected)
+                # 流式结束后，等到 30s 再换下一批
+                elapsed = time.time() - round_start
+                remaining = 30.0 - elapsed
+                while remaining > 0 and not result_holder["done"]:
+                    time.sleep(min(remaining, 0.5))
+                    remaining = 30.0 - (time.time() - round_start)
+            except Exception:
+                time.sleep(2)
+
+    # 确保主任务完成
+    thread.join(timeout=120)
+
+    if result_holder["error"]:
+        raise result_holder["error"]
+    return result_holder["result"]
 
 
 # ══════════════════════════════════════════════════════
@@ -700,100 +897,82 @@ elif st.session_state.page == "lobster":
         if st.session_state.mode == "sequential":
             st.markdown(f"**{t('step_progress')} {lobster_num}/5**")
         if st.button(t("run_analysis"), type="primary"):
-            with st.spinner(f"{lb['name']} {t('analyzing')}"):
-                prev = {k: v for k, v in st.session_state.reports.items()
-                        if k in st.session_state.confirmed and k != lid}
-                report = run_lobster(lobster_num, st.session_state.idea, st.session_state.anchor, prev)
-                st.session_state.reports[lid] = report
-                st.session_state.chat_histories[lid] = []
-                st.session_state.supplement_histories[lid] = []
+            prev = {k: v for k, v in st.session_state.reports.items()
+                    if k in st.session_state.confirmed and k != lid}
+            _prev, _idea, _anchor, _lnum = prev, st.session_state.idea, st.session_state.anchor, lobster_num
+            report = _run_with_rainbow(
+                lambda: run_lobster(_lnum, _idea, _anchor, _prev),
+                f"{lb['name']} {t('analyzing')}",
+            )
+            _add_version(lid, report, "initial")
+            st.session_state.chat_histories[lid] = []
+            st.session_state.supplement_histories[lid] = []
             st.rerun()
     else:
         report = st.session_state.reports[lid]
+        versions = st.session_state.report_versions.get(lid, [])
+        cur_ver_idx = st.session_state.selected_version.get(lid, max(0, len(versions) - 1))
 
-        # ── 三个 Tab ──
-        tab_report, tab_ask, tab_supplement = st.tabs([t("tab_report"), t("tab_ask"), t("tab_supplement")])
-
-        # ────── Tab 1: 报告 ──────
-        with tab_report:
-            st.markdown(report)
-
-            is_sequential = st.session_state.mode == "sequential"
-
-            if lid not in st.session_state.confirmed:
-                if is_sequential:
-                    col1, col2, col3 = st.columns(3)
-                    if col1.button(t("confirm_report") + " + " + t("next_step"), type="primary"):
-                        st.session_state.confirmed[lid] = True
-                        # 推进顺序步骤
-                        if st.session_state.seq_step < 4:
-                            st.session_state.seq_step += 1
-                            next_lid = f"L{st.session_state.seq_step + 1}"
-                            st.session_state.active_lobster = next_lid
-                        else:
-                            st.session_state.page = "summary"
+        # ── 版本选择器（多版本时显示）──
+        if len(versions) > 1:
+            st.markdown(f"**{t('version_history')}** ({len(versions)} {t('version_label')})")
+            ver_cols = st.columns(min(len(versions), 5))
+            for vi, ver in enumerate(versions):
+                with ver_cols[vi % min(len(versions), 5)]:
+                    source_label = {
+                        "initial": t("version_initial"),
+                        "feedback": t("version_feedback"),
+                        "supplement": t("version_supplement"),
+                    }.get(ver["source"], ver["source"])
+                    is_selected = vi == cur_ver_idx
+                    btn_label = f"V{vi+1} · {source_label} · {ver['time']}"
+                    if is_selected:
+                        btn_label = f"V{vi+1} [{t('version_selected')}]"
+                    if st.button(btn_label, key=f"ver_{lid}_{vi}",
+                                 type="primary" if is_selected else "secondary",
+                                 use_container_width=True):
+                        _select_version(lid, vi)
                         st.rerun()
-                    if col2.button(t("regenerate")):
-                        del st.session_state.reports[lid]
-                        st.session_state.chat_histories[lid] = []
-                        st.session_state.supplement_histories[lid] = []
-                        st.rerun()
-                    if col3.button(t("skip_step")):
-                        # 跳过不确认，直接进下一步
-                        if st.session_state.seq_step < 4:
-                            st.session_state.seq_step += 1
-                            next_lid = f"L{st.session_state.seq_step + 1}"
-                            st.session_state.active_lobster = next_lid
-                        else:
-                            st.session_state.page = "summary"
-                        st.rerun()
-                else:
-                    col1, col2 = st.columns(2)
-                    if col1.button(t("confirm_report"), type="primary"):
-                        st.session_state.confirmed[lid] = True
-                        st.rerun()
-                    if col2.button(t("regenerate")):
-                        del st.session_state.reports[lid]
-                        st.session_state.chat_histories[lid] = []
-                        st.session_state.supplement_histories[lid] = []
-                        st.rerun()
-            else:
-                st.success(t("confirmed"))
-                if is_sequential:
-                    if st.button(t("next_step")):
-                        if st.session_state.seq_step < 4:
-                            st.session_state.seq_step += 1
-                            next_lid = f"L{st.session_state.seq_step + 1}"
-                            st.session_state.active_lobster = next_lid
-                        else:
-                            st.session_state.page = "summary"
-                        st.rerun()
-
-            # 下载
-            st.divider()
-            anchor_name = st.session_state.anchor.get("name", "product")
-            dl1, dl2 = st.columns(2)
-            dl1.download_button(
-                t("download_md"),
-                data=f"# {lb['name']}\n\n**{anchor_name}**\n{datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n\n{report}",
-                file_name=f"{lid}_{lb['short']}_{datetime.now().strftime('%Y%m%d')}.md",
-                mime="text/markdown", use_container_width=True,
-            )
-            dl2.download_button(
-                t("download_json"),
-                data=json.dumps({"lobster": lb, "idea": st.session_state.idea, "anchor": st.session_state.anchor,
-                                 "report": report, "chat_history": st.session_state.chat_histories.get(lid, []),
-                                 "supplements": st.session_state.supplement_histories.get(lid, []),
-                                 "generated_at": datetime.now().isoformat()}, ensure_ascii=False, indent=2),
-                file_name=f"{lid}_{lb['short']}_{datetime.now().strftime('%Y%m%d')}.json",
-                mime="application/json", use_container_width=True,
-            )
-
-        # ────── Tab 2: 询问细节 ──────
-        with tab_ask:
-            st.markdown(t("ask_placeholder"))
+                    if ver.get("feedback"):
+                        st.caption(f"{t('feedback_label')}: {ver['feedback'][:50]}...")
             st.divider()
 
+        # ── 报告正文 ──
+        st.markdown(report)
+
+        # ══════════════════════════════════════════
+        # 反馈修改 / 询问细节 / 补充信息（报告正文之后、确认按钮之前）
+        # ══════════════════════════════════════════
+        st.divider()
+
+        # ── 反馈修改 ──
+        with st.expander(f"**{t('feedback_input')}**", expanded=False):
+            if versions:
+                st.caption(f"{t('version_current')}: V{cur_ver_idx + 1} / {len(versions)}")
+
+            feedback_text = st.text_area(
+                t("feedback_input"),
+                key=f"feedback_input_{lid}",
+                height=120,
+                placeholder=t("feedback_placeholder"),
+                label_visibility="collapsed",
+            )
+
+            if feedback_text and st.button(t("feedback_regenerate"), type="primary"):
+                prev = {k: v for k, v in st.session_state.reports.items()
+                        if k in st.session_state.confirmed and k != lid}
+                _prev, _rpt, _fb, _idea, _anchor, _lnum = prev, report, feedback_text, st.session_state.idea, st.session_state.anchor, lobster_num
+                new_report = _run_with_rainbow(
+                    lambda: feedback_regenerate(_lnum, _rpt, _fb, _idea, _anchor, _prev),
+                    f"{lb['name']} {t('analyzing')}",
+                )
+                _add_version(lid, new_report, "feedback", feedback_text)
+                if lid in st.session_state.confirmed:
+                    del st.session_state.confirmed[lid]
+                st.rerun()
+
+        # ── 询问细节 ──
+        with st.expander(f"**{t('tab_ask')}**", expanded=False):
             chat_history = st.session_state.chat_histories.get(lid, [])
             for msg in chat_history:
                 avatar = "👤" if msg["role"] == "user" else "🦞"
@@ -813,15 +992,14 @@ elif st.session_state.page == "lobster":
                 st.session_state.chat_histories[lid] = chat_history
                 st.rerun()
 
-        # ────── Tab 3: 补充信息 ──────
-        with tab_supplement:
+        # ── 补充信息 ──
+        with st.expander(f"**{t('tab_supplement')}**", expanded=False):
             supplement_history = st.session_state.supplement_histories.get(lid, [])
 
-            # 显示补充历史
             if supplement_history:
                 for sh in supplement_history:
                     with st.expander(f"{sh['time']} — {sh['content'][:40]}..."):
-                        st.markdown(f"**补充内容：** {sh['content']}")
+                        st.markdown(f"**{t('tab_supplement')}:** {sh['content']}")
 
             supplement_text = st.text_area(
                 t("supplement_placeholder"),
@@ -831,24 +1009,98 @@ elif st.session_state.page == "lobster":
             )
 
             if supplement_text and st.button(t("supplement_update"), type="primary"):
-                with st.spinner(t("updating_report")):
-                    prev = {k: v for k, v in st.session_state.reports.items()
-                            if k in st.session_state.confirmed and k != lid}
-                    new_report = supplement_report(
-                        lobster_num, report, supplement_text,
-                        st.session_state.idea, st.session_state.anchor, prev,
-                    )
-                    st.session_state.reports[lid] = new_report
-                    # 记录补充历史
-                    supplement_history.append({
-                        "time": datetime.now().strftime("%H:%M"),
-                        "content": supplement_text,
-                    })
-                    st.session_state.supplement_histories[lid] = supplement_history
-                    # 如果已确认，补充后取消确认
-                    if lid in st.session_state.confirmed:
-                        del st.session_state.confirmed[lid]
+                prev = {k: v for k, v in st.session_state.reports.items()
+                        if k in st.session_state.confirmed and k != lid}
+                _prev, _rpt, _supp, _idea, _anchor, _lnum = prev, report, supplement_text, st.session_state.idea, st.session_state.anchor, lobster_num
+                new_report = _run_with_rainbow(
+                    lambda: supplement_report(_lnum, _rpt, _supp, _idea, _anchor, _prev),
+                    t("updating_report"),
+                )
+                _add_version(lid, new_report, "supplement", supplement_text)
+                supplement_history.append({
+                    "time": datetime.now().strftime("%H:%M"),
+                    "content": supplement_text,
+                })
+                st.session_state.supplement_histories[lid] = supplement_history
+                if lid in st.session_state.confirmed:
+                    del st.session_state.confirmed[lid]
                 st.rerun()
+
+        # ── 操作按钮 ──
+        st.divider()
+        is_sequential = st.session_state.mode == "sequential"
+
+        if lid not in st.session_state.confirmed:
+            if is_sequential:
+                col1, col2, col3 = st.columns(3)
+                if col1.button(t("confirm_report") + " + " + t("next_step"), type="primary"):
+                    st.session_state.confirmed[lid] = True
+                    if st.session_state.seq_step < 4:
+                        st.session_state.seq_step += 1
+                        next_lid = f"L{st.session_state.seq_step + 1}"
+                        st.session_state.active_lobster = next_lid
+                    else:
+                        st.session_state.page = "summary"
+                    st.rerun()
+                if col2.button(t("regenerate")):
+                    del st.session_state.reports[lid]
+                    st.session_state.report_versions[lid] = []
+                    st.session_state.selected_version.pop(lid, None)
+                    st.session_state.chat_histories[lid] = []
+                    st.session_state.supplement_histories[lid] = []
+                    st.rerun()
+                if col3.button(t("skip_step")):
+                    if st.session_state.seq_step < 4:
+                        st.session_state.seq_step += 1
+                        next_lid = f"L{st.session_state.seq_step + 1}"
+                        st.session_state.active_lobster = next_lid
+                    else:
+                        st.session_state.page = "summary"
+                    st.rerun()
+            else:
+                col1, col2 = st.columns(2)
+                if col1.button(t("confirm_report"), type="primary"):
+                    st.session_state.confirmed[lid] = True
+                    st.rerun()
+                if col2.button(t("regenerate")):
+                    del st.session_state.reports[lid]
+                    st.session_state.report_versions[lid] = []
+                    st.session_state.selected_version.pop(lid, None)
+                    st.session_state.chat_histories[lid] = []
+                    st.session_state.supplement_histories[lid] = []
+                    st.rerun()
+        else:
+            st.success(t("confirmed"))
+            if is_sequential:
+                if st.button(t("next_step")):
+                    if st.session_state.seq_step < 4:
+                        st.session_state.seq_step += 1
+                        next_lid = f"L{st.session_state.seq_step + 1}"
+                        st.session_state.active_lobster = next_lid
+                    else:
+                        st.session_state.page = "summary"
+                    st.rerun()
+
+        # ── 下载 ──
+        st.divider()
+        anchor_name = st.session_state.anchor.get("name", "product")
+        dl1, dl2 = st.columns(2)
+        dl1.download_button(
+            t("download_md"),
+            data=f"# {lb['name']}\n\n**{anchor_name}**\n{datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n\n{report}",
+            file_name=f"{lid}_{lb['short']}_{datetime.now().strftime('%Y%m%d')}.md",
+            mime="text/markdown", use_container_width=True,
+        )
+        dl2.download_button(
+            t("download_json"),
+            data=json.dumps({"lobster": lb, "idea": st.session_state.idea, "anchor": st.session_state.anchor,
+                             "report": report, "versions": versions,
+                             "chat_history": st.session_state.chat_histories.get(lid, []),
+                             "supplements": st.session_state.supplement_histories.get(lid, []),
+                             "generated_at": datetime.now().isoformat()}, ensure_ascii=False, indent=2),
+            file_name=f"{lid}_{lb['short']}_{datetime.now().strftime('%Y%m%d')}.json",
+            mime="application/json", use_container_width=True,
+        )
 
 
 # ══════════════════════════════════════════════════════
